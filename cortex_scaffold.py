@@ -8,6 +8,7 @@ import os
 import re
 import sys
 import json
+import argparse
 import subprocess
 from pathlib import Path
 from typing import List, Optional
@@ -736,6 +737,11 @@ Each module has its own documentation directory under `docs/<module>/`.
 '''
 
 
+def generate_requirements_txt() -> str:
+    """Generate requirements.txt content."""
+    return "fastapi\nuvicorn[standard]\n"
+
+
 def generate_package_init(package_name: str) -> str:
     """Generate package __init__.py."""
     return f'''"""Main package for {package_name}."""
@@ -984,35 +990,344 @@ def validate_project_name(project_name: str, check_exists: bool = True) -> tuple
     return True, None
 
 
+def extract_project_info_from_ideas(user_input_path: str) -> tuple[Optional[str], List[str], Optional[str]]:
+    """Extract project name, modules, and description from ideas file using OpenAI."""
+    try:
+        import openai
+    except ImportError:
+        print("❌ OpenAI library not installed. Install with: pip install openai")
+        return None, [], None
+
+    # Read user input file
+    try:
+        with open(user_input_path, 'r', encoding='utf-8') as f:
+            user_content = f.read().strip()
+    except Exception as e:
+        print(f"❌ Error reading ideas file: {e}")
+        return None, [], None
+
+    if not user_content:
+        print("⚠️  Ideas file is empty")
+        return None, [], None
+
+    # Get OpenAI API key
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        print("❌ OPENAI_API_KEY environment variable not set")
+        return None, [], None
+
+    try:
+        client = openai.OpenAI(api_key=api_key)
+
+        prompt = f"""Analyze the following project ideas and extract:
+1. A suitable project name (kebab-case, concise, descriptive)
+2. A comma-separated list of module names (snake_case, 3-8 modules for FastAPI routers)
+3. A short project description (one sentence, professional)
+
+Ideas:
+{user_content}
+
+Guidelines:
+- Project name: kebab-case, 2-4 words, descriptive of the main purpose
+- Modules: Focus on functional areas (auth, users, database, notifications, etc.), snake_case, 3-8 modules
+  IMPORTANT: Do NOT include "api" as a module - the API lives at the root level (main.py) and is not a module
+- Description: One clear sentence explaining what the project does
+
+Return your response in this exact JSON format:
+{{
+  "project_name": "example-project-name",
+  "modules": "module1,module2,module3",
+  "description": "A concise description of what this project does"
+}}"""
+
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant that extracts project information from requirements. Always return valid JSON."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=300,
+            temperature=0.3,
+            response_format={"type": "json_object"}
+        )
+
+        result_text = response.choices[0].message.content.strip()
+        result = json.loads(result_text)
+
+        project_name = result.get("project_name", "").strip()
+        modules_text = result.get("modules", "").strip()
+        description = result.get("description", "").strip()
+
+        # Parse modules
+        modules = [m.strip() for m in modules_text.split(',') if m.strip()]
+
+        # Validate extracted modules
+        valid_modules = []
+        for module in modules:
+            is_valid, error = validate_module_name(module)
+            if is_valid:
+                valid_modules.append(module)
+            else:
+                print(f"⚠️  Skipping invalid module '{module}': {error}")
+
+        print(f"✅ Extracted from ideas:")
+        print(f"   Project name: {project_name}")
+        print(f"   Modules: {', '.join(valid_modules)}")
+        print(f"   Description: {description}")
+
+        return project_name if project_name else None, valid_modules, description if description else None
+
+    except json.JSONDecodeError as e:
+        print(f"❌ Error parsing OpenAI response: {e}")
+        return None, [], None
+    except Exception as e:
+        print(f"❌ Error extracting project info: {e}")
+        return None, [], None
+
+
+def extract_modules_from_ideas(user_input_path: str) -> List[str]:
+    """Extract potential module names from ideas file using OpenAI."""
+    try:
+        import openai
+    except ImportError:
+        print("❌ OpenAI library not installed. Install with: pip install openai")
+        return []
+
+    # Read user input file
+    try:
+        with open(user_input_path, 'r', encoding='utf-8') as f:
+            user_content = f.read().strip()
+    except Exception as e:
+        print(f"❌ Error reading ideas file: {e}")
+        return []
+
+    if not user_content:
+        print("⚠️  Ideas file is empty")
+        return []
+
+    # Get OpenAI API key
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        print("❌ OPENAI_API_KEY environment variable not set")
+        return []
+
+    try:
+        client = openai.OpenAI(api_key=api_key)
+
+        prompt = f"""Analyze the following project ideas and extract a list of potential module names for a FastAPI application.
+
+Ideas:
+{user_content}
+
+Please extract module names that would be suitable for a deep module that will expose functionality through a FastAPI router. Return them as a comma-separated list.
+
+Guidelines:
+- Focus on functional areas (auth, users, database, notifications, etc.)
+- Use snake_case naming
+- Keep names concise but descriptive
+- Extract 3-8 modules maximum
+- Only include modules that make sense for a web API
+- IMPORTANT: Do NOT include "api" as a module - the API lives at the root level (main.py) and is not a module
+
+Examples of good modules: auth, users, database, notifications, payments, analytics
+
+Return only the comma-separated list, no explanation."""
+
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant that extracts module names from project requirements."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=100,
+            temperature=0.3
+        )
+
+        modules_text = response.choices[0].message.content.strip()
+        modules = [m.strip() for m in modules_text.split(',') if m.strip()]
+
+        # Validate extracted modules
+        valid_modules = []
+        for module in modules:
+            is_valid, error = validate_module_name(module)
+            if is_valid:
+                valid_modules.append(module)
+            else:
+                print(f"⚠️  Skipping invalid module '{module}': {error}")
+
+        print(f"✅ Extracted {len(valid_modules)} modules from ideas: {', '.join(valid_modules)}")
+        return valid_modules
+
+    except Exception as e:
+        print(f"❌ Error extracting modules: {e}")
+        return []
+
+
+def enhance_readme_with_openai(base_readme: str, user_input_path: str, project_name: str, description: str, modules: List[str]) -> str:
+    """Enhance README using OpenAI API based on user input."""
+    try:
+        import openai
+    except ImportError:
+        print("❌ OpenAI library not installed. Install with: pip install openai")
+        return base_readme
+
+    # Read user input file
+    try:
+        with open(user_input_path, 'r', encoding='utf-8') as f:
+            user_content = f.read().strip()
+    except FileNotFoundError:
+        print(f"❌ User input file not found: {user_input_path}")
+        return base_readme
+    except Exception as e:
+        print(f"❌ Error reading user input file: {e}")
+        return base_readme
+
+    if not user_content:
+        print("⚠️  User input file is empty, using standard README")
+        return base_readme
+
+    # Get OpenAI API key
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        print("❌ OPENAI_API_KEY environment variable not set")
+        return base_readme
+
+    try:
+        client = openai.OpenAI(api_key=api_key)
+
+        prompt = f"""You are a technical writer enhancing a README.md file for a Python FastAPI project.
+
+Project Information:
+- Project Name: {project_name}
+- Description: {description}
+- Modules: {', '.join(modules)}
+
+Current README structure:
+{base_readme}
+
+User's additional ideas and requirements:
+{user_content}
+
+Please enhance the README by:
+1. Incorporating the user's ideas and requirements into the existing structure
+2. Maintaining the professional format and structure
+3. Adding any relevant sections that would be helpful based on the user's input
+4. Ensuring all sections remain practical and actionable
+5. Keeping the README comprehensive but not overwhelming
+
+Return the complete enhanced README.md content, maintaining markdown formatting."""
+
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are a helpful technical writer who enhances README files by incorporating user requirements while maintaining professional standards."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=2000,
+            temperature=0.7
+        )
+
+        enhanced_readme = response.choices[0].message.content.strip()
+
+        # Ensure it starts with proper markdown headers
+        if not enhanced_readme.startswith('# '):
+            enhanced_readme = f"# {project_name}\n\n{enhanced_readme}"
+
+        print("✅ README enhanced with OpenAI")
+        return enhanced_readme
+
+    except Exception as e:
+        print(f"❌ Error calling OpenAI API: {e}")
+        return base_readme
+
+
 def main():
     """Main scaffolding function."""
+    parser = argparse.ArgumentParser(
+        description="Python Project Scaffolder - Create FastAPI projects with modular architecture",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python cortex_scaffold.py                           # Interactive mode (with defaults)
+  python cortex_scaffold.py --help                    # Show this help
+  python cortex_scaffold.py --inspire ideas.txt       # AI extracts project name, modules, and description from ideas
+
+Interactive Mode Defaults (without --inspire):
+  Project name: my_fastapi_project
+  Modules: users,auth
+  Description: A micromodular project powered by CortexScaffold and FastAPI
+
+With --inspire flag:
+  AI automatically extracts project name, modules, and description from your ideas file.
+  You can just hit Enter to accept all AI-generated defaults!
+
+Setup OpenAI API key:
+  export OPENAI_API_KEY="your-api-key-here"
+        """
+    )
+
+    parser.add_argument(
+        "--inspire",
+        type=str,
+        help="Path to a .txt file containing ideas to enhance the README using OpenAI API. Requires OPENAI_API_KEY environment variable."
+    )
+
+    args = parser.parse_args()
+
+    # Validate inspire file if provided
+    if args.inspire:
+        if not args.inspire.endswith('.txt'):
+            print("❌ Error: Inspiration file must be a .txt file")
+            sys.exit(1)
+        if not os.path.exists(args.inspire):
+            print(f"❌ Error: Inspiration file not found: {args.inspire}")
+            sys.exit(1)
+
     print("=" * 60)
     print("Python Project Scaffolder")
     print("=" * 60)
     print()
-    
+
+    # Extract project info from ideas file if --inspire is used
+    default_project_name = "my_fastapi_project"
+    default_modules = "users,auth"
+    default_description = "A micromodular project powered by CortexScaffold and FastAPI"
+
+    if args.inspire:
+        print("🤖 Extracting project information from ideas file...")
+        extracted_name, extracted_modules, extracted_description = extract_project_info_from_ideas(args.inspire)
+        
+        if extracted_name:
+            default_project_name = extracted_name
+        if extracted_modules:
+            default_modules = ",".join(extracted_modules)
+        if extracted_description:
+            default_description = extracted_description
+        print()
+
     # Get project information
-    project_name = get_user_input("Project name")
+    project_name = get_user_input("Project name", default_project_name)
     if not project_name:
         print("Error: Project name is required.")
         sys.exit(1)
-    
+
     # Validate project name
     is_valid, error = validate_project_name(project_name)
     if not is_valid:
         print(f"\n❌ Project name validation error: {error}")
         sys.exit(1)
-    
-    modules_input = get_user_input("Modules (comma-separated)")
+
+    # Get modules
+    modules_input = get_user_input("Modules (comma-separated)", default_modules)
     if not modules_input:
         print("Error: At least one module is required.")
         sys.exit(1)
-    
     modules = [m.strip() for m in modules_input.split(",") if m.strip()]
+
     if not modules:
         print("Error: At least one module is required.")
         sys.exit(1)
-    
+
     # Validate module names
     is_valid, validation_errors = validate_modules(modules)
     if not is_valid:
@@ -1022,11 +1337,11 @@ def main():
         print("\nPlease use valid Python module names (will be converted to snake_case).")
         print("Module names cannot be Python keywords or reserved names.")
         sys.exit(1)
-    
-    description = get_user_input("Short description", "A FastAPI project")
-    
+
+    description = get_user_input("Short description", default_description)
+
     init_git = get_yes_no("Initialize git repository?", True)
-    
+
     github_private = False
     create_github = False
     if init_git:
@@ -1065,11 +1380,21 @@ def main():
     
     # Create root files
     print("📝 Generating files...")
-    write_file(project_path / "README.md", generate_readme(project_name, description, modules))
+
+    # Generate base README
+    base_readme = generate_readme(project_name, description, modules)
+
+    # Enhance README with OpenAI if requested
+    if args.inspire:
+        enhanced_readme = enhance_readme_with_openai(base_readme, args.inspire, project_name, description, modules)
+        write_file(project_path / "README.md", enhanced_readme)
+    else:
+        write_file(project_path / "README.md", base_readme)
+
     write_file(project_path / "NOTE_FOR_AGENTS.md", generate_note_for_agents(project_name, description, modules))
     write_file(project_path / "LICENSE", generate_mit_license())
     write_file(project_path / ".gitignore", generate_gitignore(project_name))
-    write_file(project_path / "requirements.txt", "fastapi\nuvicorn[standard]\n")
+    write_file(project_path / "requirements.txt", generate_requirements_txt())
     write_binary_file(project_path / "favicon.ico", generate_favicon_ico())
     
     # Create main.py
