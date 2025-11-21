@@ -1,13 +1,14 @@
 # Cortex Scaffold
 
-A powerful Python project scaffolding tool that creates FastAPI projects with modular architecture.
+A powerful AI-powered Python project scaffolding tool that creates standardized deep module structures. FastAPI is used as a communication tool to expose module functionality, but the core focus is on creating well-structured, deep modules with a consistent directory layout across all projects.
 
 ## Features
 
-- 🚀 FastAPI-based project structure
-- 📦 Modular architecture with automatic module generation
-- 🎨 AI-powered README enhancement with `--inspire` flag
-- 🤖 Automatic module extraction from project ideas
+- 🏗️ Standardized directory structure for consistent project organization
+- 📦 Deep module architecture with automatic module generation
+- 🤖 AI-powered project setup - extract project name, modules, and description from ideas
+- 🎨 AI-enhanced README generation with `--inspire` flag
+- 🔌 FastAPI integration for module communication (optional, not the core focus)
 - 🐍 Virtual environment setup
 - 📝 Comprehensive documentation generation
 - 🔧 Git integration with GitHub support
@@ -50,7 +51,7 @@ python cortex_scaffold.py
 The interactive mode provides sensible defaults - just hit Enter to accept them:
 - **Project name**: `my_fastapi_project`
 - **Modules**: `users,auth` (Note: "api" is not a module - the API lives at root in main.py)
-- **Description**: `A micromodular project powered by CortexScaffold and FastAPI`
+- **Description**: `A deep modular Python project with standardized structure powered by CortexScaffold`
 
 ### Command Line Mode
 ```bash
@@ -95,20 +96,24 @@ This project should include:
 
 ## Generated Project Structure
 
+The scaffold creates a standardized directory structure that ensures consistency across all projects:
+
 ```
 your-project/
 ├── config/              # Configuration files
 ├── docs/               # Documentation
 ├── downloads/          # Download directory
 ├── test/              # Test files
-├── your_project/       # Main package
+├── your_project/       # Main package with deep modules
 │   ├── utils/         # Utility modules
-│   └── modules/       # Feature modules
-├── main.py            # FastAPI application
+│   └── [modules]/     # Deep feature modules (one per module)
+├── main.py            # Application entry point (uses FastAPI for module communication)
 ├── requirements.txt   # Dependencies
 ├── README.md          # Project documentation
 └── ...
 ```
+
+Each module is a deep, self-contained structure ready for development, following the standardized layout.
 
 ## Requirements
 

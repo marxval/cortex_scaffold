@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-Production-grade Python project scaffolding script.
-Acts like npm init for Python projects with FastAPI support.
+AI-powered Python project scaffolding script.
+Creates standardized deep module structures with consistent directory layout.
+FastAPI is used as a communication tool to expose module functionality.
 """
 
 import os
@@ -1021,7 +1022,7 @@ def extract_project_info_from_ideas(user_input_path: str) -> tuple[Optional[str]
 
         prompt = f"""Analyze the following project ideas and extract:
 1. A suitable project name (kebab-case, concise, descriptive)
-2. A comma-separated list of module names (snake_case, 3-8 modules for FastAPI routers)
+2. A comma-separated list of deep module names (snake_case, 3-8 modules for a standardized Python project structure)
 3. A short project description (one sentence, professional)
 
 Ideas:
@@ -1029,9 +1030,10 @@ Ideas:
 
 Guidelines:
 - Project name: kebab-case, 2-4 words, descriptive of the main purpose
-- Modules: Focus on functional areas (auth, users, database, notifications, etc.), snake_case, 3-8 modules
+- Modules: Focus on functional areas (auth, users, database, notifications, etc.), snake_case, 3-8 deep modules
   IMPORTANT: Do NOT include "api" as a module - the API lives at the root level (main.py) and is not a module
-- Description: One clear sentence explaining what the project does
+  These are deep modules with standardized directory structure, not just API endpoints
+- Description: One clear sentence explaining what the project does, emphasizing standardized structure and deep modules
 
 Return your response in this exact JSON format:
 {{
@@ -1114,12 +1116,12 @@ def extract_modules_from_ideas(user_input_path: str) -> List[str]:
     try:
         client = openai.OpenAI(api_key=api_key)
 
-        prompt = f"""Analyze the following project ideas and extract a list of potential module names for a FastAPI application.
+        prompt = f"""Analyze the following project ideas and extract a list of potential deep module names for a standardized Python project structure.
 
 Ideas:
 {user_content}
 
-Please extract module names that would be suitable for a deep module that will expose functionality through a FastAPI router. Return them as a comma-separated list.
+Please extract module names that would be suitable for deep modules in a standardized directory structure. These modules will be self-contained and can optionally expose functionality through FastAPI routers. Return them as a comma-separated list.
 
 Guidelines:
 - Focus on functional areas (auth, users, database, notifications, etc.)
@@ -1195,7 +1197,7 @@ def enhance_readme_with_openai(base_readme: str, user_input_path: str, project_n
     try:
         client = openai.OpenAI(api_key=api_key)
 
-        prompt = f"""You are a technical writer enhancing a README.md file for a Python FastAPI project.
+        prompt = f"""You are a technical writer enhancing a README.md file for a Python project with standardized deep module structure.
 
 Project Information:
 - Project Name: {project_name}
@@ -1244,7 +1246,7 @@ Return the complete enhanced README.md content, maintaining markdown formatting.
 def main():
     """Main scaffolding function."""
     parser = argparse.ArgumentParser(
-        description="Python Project Scaffolder - Create FastAPI projects with modular architecture",
+        description="Python Project Scaffolder - Create standardized deep module structures with AI-powered setup",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -1255,7 +1257,7 @@ Examples:
 Interactive Mode Defaults (without --inspire):
   Project name: my_fastapi_project
   Modules: users,auth
-  Description: A micromodular project powered by CortexScaffold and FastAPI
+  Description: A deep modular Python project with standardized structure powered by CortexScaffold
 
 With --inspire flag:
   AI automatically extracts project name, modules, and description from your ideas file.
@@ -1291,7 +1293,7 @@ Setup OpenAI API key:
     # Extract project info from ideas file if --inspire is used
     default_project_name = "my_fastapi_project"
     default_modules = "users,auth"
-    default_description = "A micromodular project powered by CortexScaffold and FastAPI"
+    default_description = "A deep modular Python project with standardized structure powered by CortexScaffold"
 
     if args.inspire:
         print("🤖 Extracting project information from ideas file...")
