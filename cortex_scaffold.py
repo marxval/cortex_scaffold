@@ -11,6 +11,7 @@ import sys
 import json
 import argparse
 import subprocess
+import shutil
 from pathlib import Path
 from typing import List, Optional
 
@@ -1397,7 +1398,17 @@ Setup OpenAI API key:
     write_file(project_path / "LICENSE", generate_mit_license())
     write_file(project_path / ".gitignore", generate_gitignore(project_name))
     write_file(project_path / "requirements.txt", generate_requirements_txt())
-    write_binary_file(project_path / "favicon.ico", generate_favicon_ico())
+    
+    # Copy favicon from script root directory
+    script_dir = Path(__file__).parent
+    favicon_source = script_dir / "fav.ico"
+    if favicon_source.exists():
+        shutil.copy2(favicon_source, project_path / "favicon.ico")
+        print("✅ Copied favicon from root")
+    else:
+        # Fallback to generated favicon if source doesn't exist
+        write_binary_file(project_path / "favicon.ico", generate_favicon_ico())
+        print("⚠️  fav.ico not found at root, using generated favicon")
     
     # Create main.py
     write_file(project_path / "main.py", generate_main_py(project_name, snake_package, modules))
